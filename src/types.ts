@@ -39,6 +39,7 @@ export interface ProjectContext {
   deps: Set<string>;
   config: AppConfig;
   eas: { exists: boolean; json: Record<string, unknown> | null; error: string | null };
+  /** .gitignore text of the app dir merged with its ancestors up to the git root; null if none. */
   gitignore: string | null;
   /** Files tracked by git relative to root; null when not a git repo / git unavailable. */
   trackedFiles: string[] | null;
@@ -46,6 +47,10 @@ export interface ProjectContext {
   diskFiles: string[];
   /** Variable names defined in .env.example / .env.sample / .env.template. */
   envExampleVars: Set<string>;
+  /** True when the app lives in an example / demo / sample folder (or repo). */
+  isExample: boolean;
+  /** Lightweight static scan of JS/TS sources. `scanned` is false when none were found. */
+  source: { scanned: boolean; imported: Set<string>; mediaApis: Set<string> };
 }
 
 export interface Rule {

@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
+import { basename, dirname, join, relative } from 'node:path';
 import { SECRET_FILE_PATTERNS } from './data/packages.js';
 import type { AppConfig, ProjectContext } from './types.js';
 
@@ -214,20 +214,131 @@ function gitTracked(root: string): string[] | null {
   }
 }
 
-function loadEnvExample(root: string): Set<string> {
+function gitTopLevel(root: string): string | null {
+  try {
+    const out = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    return out ? realpathSync(out) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Directories from `root` up to (and including) the git root; just `root` outside a repo. */
+function dirChain(root: string, top: string | null): string[] {
+  const start = realpathSafe(root);
+  if (!top) return [start];
+  const chain: string[] = [];
+  let dir = start;
+  for (let i = 0; i < 20; i++) {
+    chain.push(dir);
+    if (dir === top) return chain;
+    const up = dirname(dir);
+    if (up === dir) break;
+    dir = up;
+  }
+  return [start];
+}
+
+function realpathSafe(p: string): string {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
+}
+
+const ENV_EXAMPLE_FILE =
+  /^\.env(\..+)?\.(example|sample|template)$|^\.env\.(example|sample|template)$/;
+
+function loadEnvExample(dirs: string[]): Set<string> {
   const vars = new Set<string>();
-  for (const f of ['.env.example', '.env.sample', '.env.template']) {
-    const t = readText(join(root, f));
-    if (!t) continue;
-    for (const line of t.split('\n')) {
-      const m = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/.exec(line);
-      if (m?.[1]) vars.add(m[1]);
+  for (const dir of dirs) {
+    let names: string[];
+    try {
+      names = readdirSync(dir).filter((n) => ENV_EXAMPLE_FILE.test(n));
+    } catch {
+      continue;
+    }
+    for (const f of names) {
+      const t = readText(join(dir, f));
+      if (!t) continue;
+      for (const line of t.split('\n')) {
+        const m = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/.exec(line);
+        if (m?.[1]) vars.add(m[1]);
+      }
     }
   }
   return vars;
 }
 
+const EXAMPLE_NAME = /(^|[-_.])(examples?|demos?|samples?)([-_.]|$)/i;
+
+function detectExample(root: string, top: string | null): boolean {
+  const start = realpathSafe(root);
+  const names = [basename(start)];
+  if (top && top !== start) {
+    names.push(...relative(top, start).split(/[\\/]/), basename(top));
+  }
+  return names.some((n) => EXAMPLE_NAME.test(n));
+}
+
+const SOURCE_EXT = /\.(?:[cm]?[jt]sx?)$/;
+const MEDIA_API =
+  /\b(getAssetsAsync|getAlbumsAsync|getAlbumAsync|getAssetInfoAsync|getMomentsAsync|saveToLibraryAsync|createAssetAsync|createAlbumAsync|addAssetsToAlbumAsync|deleteAssetsAsync|removeAssetsFromAlbumAsync)\b/g;
+
+function scanSource(root: string): {
+  scanned: boolean;
+  imported: Set<string>;
+  mediaApis: Set<string>;
+} {
+  const imported = new Set<string>();
+  const mediaApis = new Set<string>();
+  let count = 0;
+  const walk = (dir: string, depth: number) => {
+    if (depth > 6 || count > 3000) return;
+    let entries: string[];
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      const full = join(dir, e);
+      let st;
+      try {
+        st = statSync(full);
+      } catch {
+        continue;
+      }
+      if (st.isDirectory()) {
+        if (!SKIP_DIRS.has(e) && !e.startsWith('.')) walk(full, depth + 1);
+      } else if (SOURCE_EXT.test(e) && st.size < 500_000 && !/\.d\.ts$/.test(e)) {
+        const t = readText(full);
+        if (t === null) continue;
+        count++;
+        const mine = new Set<string>();
+        for (const m of t.matchAll(
+          /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)['"]((?:@[\w.-]+\/)?[\w.-]+)(?:\/[^'"]*)?['"]/g,
+        ))
+          if (m[1]) mine.add(m[1]);
+        for (const n of mine) imported.add(n);
+        if (mine.has('expo-media-library'))
+          for (const m of t.matchAll(MEDIA_API)) if (m[1]) mediaApis.add(m[1]);
+      }
+    }
+  };
+  walk(root, 0);
+  return { scanned: count > 0, imported, mediaApis };
+}
+
 export function loadProject(root: string): ProjectContext {
+  const top = gitTopLevel(root);
+  const dirs = dirChain(root, top);
+  const gitignores = dirs.map((d) => readText(join(d, '.gitignore'))).filter((t) => t !== null);
   const pkgText = readText(join(root, 'package.json'));
   const pkg = pkgText ? parseJson(pkgText).value : null;
   const deps = new Set<string>();
@@ -258,9 +369,11 @@ export function loadProject(root: string): ProjectContext {
     deps,
     config: loadConfig(root),
     eas,
-    gitignore: readText(join(root, '.gitignore')),
+    gitignore: gitignores.length ? gitignores.join('\n') : null,
     trackedFiles: gitTracked(root),
     diskFiles: scanDisk(root),
-    envExampleVars: loadEnvExample(root),
+    envExampleVars: loadEnvExample(dirs),
+    isExample: detectExample(root, top),
+    source: scanSource(root),
   };
 }

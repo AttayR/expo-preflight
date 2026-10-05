@@ -1,6 +1,6 @@
 {
   "name": "expo-preflight",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Statically audit an Expo / React Native project before eas build or eas update.",
   "keywords": [
     "expo",

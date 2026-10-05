@@ -1,4 +1,4 @@
-import { ANDROID_PERMISSIONS, DANGEROUS_ANDROID } from '../data/packages.js';
+import { ANDROID_COVERS, ANDROID_PERMISSIONS, DANGEROUS_ANDROID } from '../data/packages.js';
 import type { RawFinding, Rule } from '../types.js';
 
 export const androidPermissions: Rule = {
@@ -17,9 +17,12 @@ export const androidPermissions: Rule = {
     const covered = new Set<string>();
     for (const [pkg, required] of Object.entries(ANDROID_PERMISSIONS)) {
       if (!ctx.deps.has(pkg)) continue;
+      // A registered config plugin adds its own permissions, so "missing" cannot be judged.
+      const hasPlugin = ctx.config.plugins.includes(pkg);
       for (const req of required) {
         const options = req.split('|');
         options.forEach((o) => covered.add(o));
+        if (hasPlugin) continue;
         if (!options.some((o) => declared.has(o))) {
           const bleNote = req.startsWith('BLUETOOTH_')
             ? ' (required on Android 12+ / API 31+)'
@@ -31,6 +34,9 @@ export const androidPermissions: Rule = {
           });
         }
       }
+    }
+    for (const [pkg, extra] of Object.entries(ANDROID_COVERS)) {
+      if (ctx.deps.has(pkg)) extra.forEach((o) => covered.add(o));
     }
     for (const p of declared) {
       const reason = DANGEROUS_ANDROID[p];

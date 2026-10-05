@@ -136,6 +136,6 @@ describe('built binary', () => {
     expect(ok.status).toBe(0);
     expect(
       spawnSync('node', ['dist/cli.js', '--version'], { encoding: 'utf8' }).stdout.trim(),
-    ).toBe('0.1.0');
+    ).toBe('0.1.1');
   });
 });

@@ -25,10 +25,16 @@ export const versioning: Rule = {
     const missingOk = dyn; // cannot tell if a dynamic config computes it
 
     if (expo.version === undefined) {
-      if (!missingOk) {
+      // Expo falls back to package.json "version" when expo.version is unset.
+      const pkgVersion = ctx.packageJson?.version;
+      const hasPkgVersion = typeof pkgVersion === 'string' && pkgVersion !== '';
+      if (!missingOk && !hasPkgVersion) {
         out.push({
+          severity: ctx.isExample ? 'info' : undefined,
           file,
-          message: 'expo.version is missing.',
+          message: ctx.isExample
+            ? 'expo.version is missing (example/demo project).'
+            : 'expo.version is missing.',
           fix: 'Add expo.version, e.g. "1.0.0".',
         });
       }
