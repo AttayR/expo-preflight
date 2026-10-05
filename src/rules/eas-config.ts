@@ -43,7 +43,7 @@ function check(ctx: ProjectContext): RawFinding[] {
   const { eas } = ctx;
   if (!eas.exists) {
     out.push({
-      severity: ctx.isExample ? 'info' : undefined,
+      severity: ctx.isExample ? 'info' : 'warn',
       file: 'eas.json',
       message: ctx.isExample
         ? 'eas.json not found (example/demo project); `eas build` and `eas update` need it.'

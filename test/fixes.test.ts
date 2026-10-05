@@ -204,9 +204,9 @@ describe('fix 6: example folders and package.json version fallback', () => {
     expect(f).toHaveLength(1);
     expect(f[0]?.severity).toBe('info');
   });
-  it('eas.json not found stays an error in a normal app', () => {
+  it('eas.json not found is a warning in a normal app', () => {
     const f = runIn(easConfig, 'apps/mobile', { 'apps/mobile/package.json': pkg([]) });
-    expect(f[0]?.severity).toBe('error');
+    expect(f[0]?.severity).toBe('warn');
   });
   it('expo.version: package.json version suppresses; example -> info; app -> error', () => {
     const base = { name: 'x' };

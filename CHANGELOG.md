@@ -25,7 +25,8 @@ report shape are unchanged; some findings are now `info` instead of `warn`/`erro
   `WRITE_CALENDAR`, `expo-media-library` covers storage permissions); "missing permission" is
   suppressed when the package's config plugin is registered.
 - `eas-config` / `versioning`: "eas.json not found" and "expo.version is missing" are `info` in
-  example/demo/sample folders; `expo.version` falls back to `package.json` version.
+  example/demo/sample folders; `expo.version` falls back to `package.json` version. In a normal
+  app, a missing `eas.json` is now a `warn` instead of an `error` (apps that never use EAS are valid).
 - `ios-usage-descriptions`: `microphonePermission` from any camera/audio plugin is accepted;
   `expo-media-library` used only to save requires `NSPhotoLibraryAddUsageDescription`; packages
   never imported in app sources are reported as `info`.
