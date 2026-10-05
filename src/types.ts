@@ -50,7 +50,13 @@ export interface ProjectContext {
   /** True when the app lives in an example / demo / sample folder (or repo). */
   isExample: boolean;
   /** Lightweight static scan of JS/TS sources. `scanned` is false when none were found. */
-  source: { scanned: boolean; imported: Set<string>; mediaApis: Set<string> };
+  source: {
+    scanned: boolean;
+    imported: Set<string>;
+    mediaApis: Set<string>;
+    /** `${package}|${InfoPlistKey}` entries whose triggering API was found in app sources. */
+    triggered: Set<string>;
+  };
 }
 
 export interface Rule {

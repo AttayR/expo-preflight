@@ -3,20 +3,95 @@ export interface IosKey {
   key: string;
   /** Option name in the package's config plugin that sets this key (if any). */
   pluginOption?: string;
+  /**
+   * API identifiers (functions, hooks, components) that actually trigger this key. When set, the
+   * key is only an error if one of them is found in app sources.
+   */
+  apis?: string[];
+  /** Extra regex (source text patterns) that also trigger the key, e.g. a JSX prop. */
+  pattern?: RegExp;
+  /** Report only when a triggering API is detected (never as info/warn for unused or unscannable). */
+  onlyIfDetected?: boolean;
 }
 
 /** Package -> iOS Info.plist usage-description keys it requires. */
 export const IOS_USAGE: Record<string, IosKey[]> = {
   'expo-camera': [
-    { key: 'NSCameraUsageDescription', pluginOption: 'cameraPermission' },
-    { key: 'NSMicrophoneUsageDescription', pluginOption: 'microphonePermission' },
+    {
+      key: 'NSCameraUsageDescription',
+      pluginOption: 'cameraPermission',
+      apis: [
+        'CameraView',
+        'Camera',
+        'useCameraPermissions',
+        'requestCameraPermissionsAsync',
+        'getCameraPermissionsAsync',
+      ],
+    },
+    {
+      key: 'NSMicrophoneUsageDescription',
+      pluginOption: 'microphonePermission',
+      apis: [
+        'recordAsync',
+        'requestMicrophonePermissionsAsync',
+        'getMicrophonePermissionsAsync',
+        'useMicrophonePermissions',
+      ],
+      // Video mode records audio unless `mute` is set.
+      pattern: /\bmode\s*=\s*\{?\s*['"]video['"]/,
+    },
   ],
   'expo-location': [
-    { key: 'NSLocationWhenInUseUsageDescription', pluginOption: 'locationWhenInUsePermission' },
+    {
+      key: 'NSLocationWhenInUseUsageDescription',
+      pluginOption: 'locationWhenInUsePermission',
+      apis: [
+        'requestForegroundPermissionsAsync',
+        'getForegroundPermissionsAsync',
+        'useForegroundPermissions',
+        'requestPermissionsAsync',
+        'getPermissionsAsync',
+        'getCurrentPositionAsync',
+        'watchPositionAsync',
+        'getLastKnownPositionAsync',
+        'watchHeadingAsync',
+        'getHeadingAsync',
+      ],
+    },
+    {
+      key: 'NSLocationAlwaysAndWhenInUseUsageDescription',
+      pluginOption: 'locationAlwaysAndWhenInUsePermission',
+      onlyIfDetected: true,
+      apis: [
+        'requestBackgroundPermissionsAsync',
+        'getBackgroundPermissionsAsync',
+        'useBackgroundPermissions',
+        'startLocationUpdatesAsync',
+        'startGeofencingAsync',
+      ],
+    },
   ],
   'expo-image-picker': [
-    { key: 'NSPhotoLibraryUsageDescription', pluginOption: 'photosPermission' },
-    { key: 'NSCameraUsageDescription', pluginOption: 'cameraPermission' },
+    {
+      key: 'NSPhotoLibraryUsageDescription',
+      pluginOption: 'photosPermission',
+      apis: [
+        'launchImageLibraryAsync',
+        'requestMediaLibraryPermissionsAsync',
+        'getMediaLibraryPermissionsAsync',
+        'useMediaLibraryPermissions',
+      ],
+    },
+    {
+      key: 'NSCameraUsageDescription',
+      pluginOption: 'cameraPermission',
+      apis: [
+        'launchCameraAsync',
+        'requestCameraPermissionsAsync',
+        'getCameraPermissionsAsync',
+        'useCameraPermissions',
+      ],
+    },
   ],
   'expo-media-library': [
     { key: 'NSPhotoLibraryUsageDescription', pluginOption: 'photosPermission' },
@@ -35,7 +110,15 @@ export const IOS_USAGE: Record<string, IosKey[]> = {
   'expo-tracking-transparency': [
     { key: 'NSUserTrackingUsageDescription', pluginOption: 'userTrackingPermission' },
   ],
-  'expo-sensors': [{ key: 'NSMotionUsageDescription', pluginOption: 'motionPermission' }],
+  // Only CoreMotion activity/altimeter APIs need the Motion & Fitness string; plain
+  // Accelerometer/Gyroscope/Magnetometer/DeviceMotion do not.
+  'expo-sensors': [
+    {
+      key: 'NSMotionUsageDescription',
+      pluginOption: 'motionPermission',
+      apis: ['Pedometer', 'Barometer'],
+    },
+  ],
   'react-native-ble-plx': [
     { key: 'NSBluetoothAlwaysUsageDescription', pluginOption: 'bluetoothAlwaysPermission' },
   ],

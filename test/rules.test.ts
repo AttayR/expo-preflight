@@ -19,7 +19,9 @@ describe('ios-usage-descriptions', () => {
     expect(msgs).toContain('NSMicrophoneUsageDescription');
     expect(msgs).toContain('NSBluetoothAlwaysUsageDescription');
     expect(msgs).not.toContain('NSCameraUsageDescription is not set');
-    expect(f.every((x) => x.severity === 'error')).toBe(true);
+    // No app sources to scan: BLE (no API map) stays an error, API-mapped keys are warnings.
+    expect(f.find((x) => x.message.includes('Bluetooth'))?.severity).toBe('error');
+    expect(f.find((x) => x.message.includes('Microphone'))?.severity).toBe('warn');
   });
 
   it('passes when keys exist', () => {
@@ -258,5 +260,132 @@ describe('secrets-hygiene', () => {
   it('flags untracked, un-ignored secret files on disk', () => {
     const f = runRule(secretsHygiene, { '.env': 'A=1', '.gitignore': 'node_modules\n' });
     expect(f.some((x) => x.file === '.env' && x.message.includes('not covered'))).toBe(true);
+  });
+});
+
+describe('ios-usage-descriptions: per-API detection', () => {
+  const sev = (f: { severity?: string }[]) => f.map((x) => x.severity);
+
+  it('expo-sensors with only Accelerometer is info for NSMotionUsageDescription', () => {
+    const f = runRule(iosUsageDescriptions, {
+      'package.json': pkg(['expo-sensors']),
+      'src/a.ts':
+        "import { Accelerometer } from 'expo-sensors';\nAccelerometer.addListener(() => {});\n",
+      ...app({}),
+    });
+    expect(sev(f)).toEqual(['info']);
+    expect(f[0]?.message).toContain('only needed if you call Pedometer');
+  });
+
+  it('expo-sensors Pedometer without the motion string is an error', () => {
+    const f = runRule(iosUsageDescriptions, {
+      'package.json': pkg(['expo-sensors']),
+      'src/a.ts': "import { Pedometer } from 'expo-sensors';\nPedometer.getStepCountAsync();\n",
+      ...app({}),
+    });
+    expect(sev(f)).toEqual(['error']);
+    expect(f[0]?.message).toContain('NSMotionUsageDescription');
+  });
+
+  it('Pedometer with the motion string or plugin option passes', () => {
+    const src = {
+      'src/a.ts': "import { Pedometer } from 'expo-sensors';\nPedometer.isAvailableAsync();\n",
+    };
+    expect(
+      runRule(iosUsageDescriptions, {
+        'package.json': pkg(['expo-sensors']),
+        ...src,
+        ...app({ ios: { infoPlist: { NSMotionUsageDescription: 'steps' } } }),
+      }),
+    ).toEqual([]);
+    expect(
+      runRule(iosUsageDescriptions, {
+        'package.json': pkg(['expo-sensors']),
+        ...src,
+        ...app({ plugins: [['expo-sensors', { motionPermission: 'steps' }]] }),
+      }),
+    ).toEqual([]);
+  });
+
+  it('expo-image-picker library-only is info for the camera key', () => {
+    const f = runRule(iosUsageDescriptions, {
+      'package.json': pkg(['expo-image-picker']),
+      'src/a.tsx':
+        "import * as ImagePicker from 'expo-image-picker';\nImagePicker.launchImageLibraryAsync({});\n",
+      ...app({ ios: { infoPlist: { NSPhotoLibraryUsageDescription: 'p' } } }),
+    });
+    expect(sev(f)).toEqual(['info']);
+    expect(f[0]?.message).toContain('NSCameraUsageDescription');
+    expect(f[0]?.message).toContain('launchCameraAsync');
+  });
+
+  it('expo-image-picker camera call without the camera string is an error', () => {
+    const f = runRule(iosUsageDescriptions, {
+      'package.json': pkg(['expo-image-picker']),
+      'src/a.tsx':
+        "import { launchCameraAsync } from 'expo-image-picker';\nlaunchCameraAsync({});\n",
+      ...app({ ios: { infoPlist: { NSPhotoLibraryUsageDescription: 'p' } } }),
+    });
+    expect(f.filter((x) => x.severity === 'error')).toHaveLength(1);
+    expect(f.find((x) => x.severity === 'error')?.message).toContain('NSCameraUsageDescription');
+  });
+
+  it('launchImageLibraryAsync without the photo library string is an error', () => {
+    const f = runRule(iosUsageDescriptions, {
+      'package.json': pkg(['expo-image-picker']),
+      'src/a.tsx':
+        "import * as ImagePicker from 'expo-image-picker';\nImagePicker.launchImageLibraryAsync({});\n",
+      ...app({ ios: { infoPlist: { NSCameraUsageDescription: 'c' } } }),
+    });
+    expect(sev(f)).toEqual(['error']);
+    expect(f[0]?.message).toContain('NSPhotoLibraryUsageDescription');
+  });
+
+  it('expo-camera: CameraView needs camera, recordAsync needs microphone', () => {
+    const f = runRule(iosUsageDescriptions, {
+      'package.json': pkg(['expo-camera']),
+      'src/a.tsx': "import { CameraView } from 'expo-camera';\nconst x = <CameraView />;\n",
+      ...app({}),
+    });
+    expect(f.find((x) => x.message.includes('NSCameraUsageDescription'))?.severity).toBe('error');
+    expect(f.find((x) => x.message.includes('NSMicrophoneUsageDescription'))?.severity).toBe(
+      'info',
+    );
+    const g = runRule(iosUsageDescriptions, {
+      'package.json': pkg(['expo-camera']),
+      'src/a.tsx':
+        "import { CameraView } from 'expo-camera';\nref.recordAsync();\n<CameraView />;\n",
+      ...app({ ios: { infoPlist: { NSCameraUsageDescription: 'c' } } }),
+    });
+    expect(sev(g)).toEqual(['error']);
+    expect(g[0]?.message).toContain('NSMicrophoneUsageDescription');
+  });
+
+  it('expo-location: foreground vs background keys', () => {
+    const fg = runRule(iosUsageDescriptions, {
+      'package.json': pkg(['expo-location']),
+      'src/a.ts':
+        "import * as Location from 'expo-location';\nLocation.requestForegroundPermissionsAsync();\n",
+      ...app({}),
+    });
+    expect(fg.map((x) => [x.severity, x.message.includes('WhenInUse')])).toEqual([['error', true]]);
+    const bg = runRule(iosUsageDescriptions, {
+      'package.json': pkg(['expo-location']),
+      'src/a.ts':
+        "import * as Location from 'expo-location';\nLocation.requestBackgroundPermissionsAsync();\n",
+      ...app({ ios: { infoPlist: { NSLocationWhenInUseUsageDescription: 'w' } } }),
+    });
+    expect(sev(bg)).toEqual(['error']);
+    expect(bg[0]?.message).toContain('NSLocationAlwaysAndWhenInUseUsageDescription');
+  });
+
+  it('unscannable sources (no JS/TS files) keep a warning for API-mapped keys', () => {
+    const f = runRule(iosUsageDescriptions, {
+      'package.json': pkg(['expo-sensors', 'expo-image-picker']),
+      ...app({}),
+    });
+    expect(f.length).toBe(3);
+    expect(sev(f).every((s) => s === 'warn')).toBe(true);
+    expect(f[0]?.message).toContain('no app sources were found');
   });
 });

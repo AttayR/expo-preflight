@@ -275,7 +275,8 @@ describe('fix 7: iOS usage descriptions', () => {
   it('missing NSPhotoLibraryUsageDescription for an imported image-picker is still an error', () => {
     const f = runRule(iosUsageDescriptions, {
       'package.json': pkg(['expo-image-picker']),
-      'src/a.tsx': "import * as ImagePicker from 'expo-image-picker';\n",
+      'src/a.tsx':
+        "import * as ImagePicker from 'expo-image-picker';\nImagePicker.launchImageLibraryAsync();\n",
       ...app({ ios: { infoPlist: { NSCameraUsageDescription: 'c' } } }),
     });
     expect(f).toHaveLength(1);

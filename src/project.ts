@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { basename, dirname, join, relative } from 'node:path';
-import { SECRET_FILE_PATTERNS } from './data/packages.js';
+import { IOS_USAGE, SECRET_FILE_PATTERNS } from './data/packages.js';
 import type { AppConfig, ProjectContext } from './types.js';
 
 function readText(path: string): string | null {
@@ -290,13 +290,19 @@ const SOURCE_EXT = /\.(?:[cm]?[jt]sx?)$/;
 const MEDIA_API =
   /\b(getAssetsAsync|getAlbumsAsync|getAlbumAsync|getAssetInfoAsync|getMomentsAsync|saveToLibraryAsync|createAssetAsync|createAlbumAsync|addAssetsToAlbumAsync|deleteAssetsAsync|removeAssetsFromAlbumAsync)\b/g;
 
+function apiRegex(apis: string[]): RegExp {
+  return new RegExp(`\\b(?:${apis.join('|')})\\b`);
+}
+
 function scanSource(root: string): {
   scanned: boolean;
   imported: Set<string>;
   mediaApis: Set<string>;
+  triggered: Set<string>;
 } {
   const imported = new Set<string>();
   const mediaApis = new Set<string>();
+  const triggered = new Set<string>();
   let count = 0;
   const walk = (dir: string, depth: number) => {
     if (depth > 6 || count > 3000) return;
@@ -328,11 +334,17 @@ function scanSource(root: string): {
         for (const n of mine) imported.add(n);
         if (mine.has('expo-media-library'))
           for (const m of t.matchAll(MEDIA_API)) if (m[1]) mediaApis.add(m[1]);
+        for (const n of mine) {
+          for (const k of IOS_USAGE[n] ?? []) {
+            if (!k.apis || triggered.has(`${n}|${k.key}`)) continue;
+            if (apiRegex(k.apis).test(t) || k.pattern?.test(t)) triggered.add(`${n}|${k.key}`);
+          }
+        }
       }
     }
   };
   walk(root, 0);
-  return { scanned: count > 0, imported, mediaApis };
+  return { scanned: count > 0, imported, mediaApis, triggered };
 }
 
 export function loadProject(root: string): ProjectContext {

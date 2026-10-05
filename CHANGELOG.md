@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.2] - Unreleased
+
+Precision release for `ios-usage-descriptions`: findings now depend on the sensitive API being
+called, not just on the package being installed. CLI flags, exit codes and the JSON report shape are
+unchanged.
+
+### Changed
+
+- `ios-usage-descriptions`: each key is mapped to the APIs that trigger it (for example
+  `launchCameraAsync` / `requestCameraPermissionsAsync` for the image-picker camera key,
+  `launchImageLibraryAsync` for the photo library key, `Pedometer` / `Barometer` for
+  `NSMotionUsageDescription`, `recordAsync` or `mode="video"` for the camera microphone key,
+  foreground vs background location APIs). Severity: `error` only when the package is installed,
+  the triggering API is found in app sources and the key is missing; `info` ("only needed if you
+  call ...") when the package is used but no triggering API is found; `warn` when no app sources
+  could be scanned. Plugin-option / `infoPlist` acceptance and exemptions are unchanged.
+- `expo-sensors`: plain `Accelerometer`, `Gyroscope`, `Magnetometer` and `DeviceMotion` no longer
+  need `NSMotionUsageDescription`.
+
+### Added
+
+- `expo-location`: `NSLocationAlwaysAndWhenInUseUsageDescription` is reported when background
+  location APIs are called.
+
 ## [0.1.1] - Unreleased
 
 Precision release driven by a scan of 23 open-source Expo apps. CLI flags, exit codes and the JSON

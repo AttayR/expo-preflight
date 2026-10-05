@@ -44,14 +44,33 @@ export const iosUsageDescriptions: Rule = {
       // Installed but never imported in app sources: likely unused, so only informational.
       const unused = ctx.source.scanned && !ctx.source.imported.has(pkg);
       for (const k of missing) {
+        const scannable = ctx.source.scanned;
+        // Keys without an API map are always considered triggered by the package being used.
+        const triggered = !k.apis || ctx.source.triggered.has(`${pkg}|${k.key}`);
+        const apiList = k.apis ? k.apis.slice(0, 4).join(', ') : '';
+        if (k.onlyIfDetected && !triggered) continue;
+        let severity: 'error' | 'warn' | 'info';
+        let message: string;
+        if (unused) {
+          severity = 'info';
+          message = `${pkg} is installed but never imported in app sources; ${k.key} is not set (ignore if unused).`;
+        } else if (scannable && !triggered) {
+          severity = 'info';
+          message = `${pkg}: ${k.key} is not set; it is only needed if you call ${apiList}${k.apis && k.apis.length > 4 ? ', ...' : ''}.`;
+        } else if (pluginOnly) {
+          severity = 'warn';
+          message = `${pkg}: ${k.key} not customised; the config plugin will use a generic default string.`;
+        } else if (!scannable && k.apis) {
+          severity = 'warn';
+          message = `${pkg} is installed but ${k.key} is not set; no app sources were found to check whether the API is used (needed if you call ${apiList}).`;
+        } else {
+          severity = 'error';
+          message = `${pkg} is installed but ${k.key} is not set; App Store submission will be rejected if the API is used.`;
+        }
         out.push({
-          severity: unused ? 'info' : pluginOnly ? 'warn' : 'error',
+          severity,
           file: ctx.config.file,
-          message: unused
-            ? `${pkg} is installed but never imported in app sources; ${k.key} is not set (ignore if unused).`
-            : pluginOnly
-              ? `${pkg}: ${k.key} not customised; the config plugin will use a generic default string.`
-              : `${pkg} is installed but ${k.key} is not set; App Store submission will be rejected if the API is used.`,
+          message,
           fix: k.pluginOption
             ? `Set expo.ios.infoPlist.${k.key} or the "${k.pluginOption}" option of the ${pkg} plugin in your app config.`
             : `Set expo.ios.infoPlist.${k.key} in your app config.`,

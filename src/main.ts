@@ -51,7 +51,7 @@ export function main(
     return 0;
   }
   if (values.version) {
-    write(typeof __VERSION__ === 'string' ? __VERSION__ : '0.1.1');
+    write(typeof __VERSION__ === 'string' ? __VERSION__ : '0.1.2');
     return 0;
   }
   const fmt = (values.json ? 'json' : (values.format ?? 'pretty')) as Format;
