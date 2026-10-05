@@ -210,3 +210,5 @@ Inputs: `path`, `fail-on`, `config`, `version`, `comment`.
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). MIT licensed, (c) Attay Rasool (AttayR).
+
+> **Note on test fixtures:** the `.env`, `google-services.json` and `release.keystore` files under `test/fixtures/` are dummy files used only to test the `secrets-hygiene` rule. They contain no real credentials.
