@@ -1,0 +1,13 @@
+{
+  "cli": { "appVersionSource": "local" },
+  "build": {
+    "development": { "developmentClient": true, "distribution": "internal" },
+    "production": { "channel": "production", "autoIncrement": true }
+  },
+  "submit": {
+    "production": {
+      "ios": { "ascAppId": "1234567890" },
+      "android": { "serviceAccountKeyPath": "./play-key.json", "track": "internal" }
+    }
+  }
+}

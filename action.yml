@@ -1,0 +1,69 @@
+name: expo-preflight
+description: Audit an Expo / React Native project before eas build or eas update and comment the results on the pull request.
+author: Attay Rasool (AttayR)
+branding:
+  icon: check-circle
+  color: blue
+inputs:
+  path:
+    description: Project directory to audit
+    default: '.'
+  fail-on:
+    description: 'Fail the job on "error" (default) or "warn"'
+    default: error
+  config:
+    description: Optional path to a .preflightrc.json
+    default: ''
+  version:
+    description: expo-preflight version to run (npm tag or semver)
+    default: latest
+  comment:
+    description: 'Post/update a PR comment ("true" or "false"). Needs pull-requests: write.'
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+    - name: Run expo-preflight
+      id: run
+      shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_VERSION: ${{ inputs.version }}
+      run: |
+        args=("$INPUT_PATH" --fail-on "$INPUT_FAIL_ON")
+        if [ -n "$INPUT_CONFIG" ]; then args+=(--config "$INPUT_CONFIG"); fi
+        set +e
+        npx --yes "expo-preflight@$INPUT_VERSION" "${args[@]}" --format github > "$RUNNER_TEMP/expo-preflight.md"
+        code=$?
+        set -e
+        cat "$RUNNER_TEMP/expo-preflight.md" >> "$GITHUB_STEP_SUMMARY"
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+    - name: Post PR comment
+      if: inputs.comment == 'true' && github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      env:
+        REPORT_FILE: ${{ runner.temp }}/expo-preflight.md
+      with:
+        script: |
+          const fs = require('fs');
+          const body = fs.readFileSync(process.env.REPORT_FILE, 'utf8');
+          const marker = '<!-- expo-preflight -->';
+          const { owner, repo } = context.repo;
+          const issue_number = context.issue.number;
+          const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+          const existing = comments.find((c) => c.body && c.body.includes(marker));
+          if (existing) {
+            await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+          } else {
+            await github.rest.issues.createComment({ owner, repo, issue_number, body });
+          }
+    - name: Fail if preflight failed
+      shell: bash
+      env:
+        CODE: ${{ steps.run.outputs.exit-code }}
+      run: exit "$CODE"

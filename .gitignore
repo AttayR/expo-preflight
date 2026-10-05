@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+*.log
+.env
+.env.*
+!.env.example
+# test fixtures intentionally contain fake secret-looking files
+!test/fixtures/**/.env
+!test/fixtures/**/.env.example
+!test/fixtures/**/google-services.json
+!test/fixtures/**/*.keystore

@@ -1,0 +1,8 @@
+{
+  "cli": { "appVersionSource": "local" },
+  "build": {
+    "preview": { "distribution": "ad-hoc" },
+    "production": { "env": { "EXPO_PUBLIC_API_URL": "https://api.example.com" } }
+  },
+  "submit": { "production": { "ios": {}, "android": { "track": "gold" } } }
+}

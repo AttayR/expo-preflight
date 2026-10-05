@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "Failing App",
+    "slug": "failing-app",
+    "version": "one.two",
+    "runtimeVersion": { "policy": "nativeVersion" },
+    "ios": {
+      "bundleIdentifier": "com.example.failing",
+      "infoPlist": { "NSCameraUsageDescription": "Camera access" }
+    },
+    "android": {
+      "package": "com.example.failing",
+      "versionCode": "3",
+      "permissions": ["CAMERA", "READ_SMS", "BLUETOOTH_SCAN", "RECORD_AUDIO"]
+    },
+    "extra": { "api": "EXPO_PUBLIC_API_URL", "sentry": "EXPO_PUBLIC_SENTRY_DSN" }
+  }
+}

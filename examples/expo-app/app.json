@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Example",
+    "slug": "example-expo-app",
+    "version": "1.0.0",
+    "runtimeVersion": { "policy": "appVersion" },
+    "updates": { "url": "https://u.expo.dev/00000000-0000-0000-0000-000000000000" },
+    "ios": {
+      "bundleIdentifier": "com.example.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Used to scan QR codes.",
+        "NSMicrophoneUsageDescription": "Used when recording video with sound."
+      }
+    },
+    "android": {
+      "package": "com.example.app",
+      "versionCode": 1,
+      "permissions": ["CAMERA"]
+    }
+  }
+}
